@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-	"reflect"
 )
 
 type Server struct {
@@ -123,18 +122,5 @@ func NewServer(c *Config) (*Server, error) {
 		c.handler = NewDefaultHandler()
 	}
 
-	rh := reflect.TypeOf(c.handler)
-	for i := 0; i < rh.NumMethod(); i++ {
-		method := rh.Method(i)
-		if method.Name[0] > 'a' && method.Name[0] < 'z' {
-			continue
-		}
-		println(method.Name)
-		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
-		if err != nil {
-			return nil, err
-		}
-		srv.Register(method.Name, handlerFn)
-	}
 	return srv, nil
 }
