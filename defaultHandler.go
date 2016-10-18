@@ -228,12 +228,36 @@ func (h *DefaultHandler) Hget(key, subkey string) ([]byte, error) {
 	return nil, nil
 }
 
+
+func (h *DefaultHandler) HFirst(key string) ([]byte, error) {
+	if h.Database == nil || h.hvalues == nil {
+		return nil, nil
+	}
+
+    first := ""
+    minv := []byte{}
+
+	if v, exists := h.hvalues[key]; exists {
+		for k, p := range v {
+            if len(minv) == 0 || string(p) < string(minv) {
+                first = k
+                minv = p
+            }
+		}
+	}
+
+	return []byte(first), nil
+}
+
 func (h *DefaultHandler) Hset(key, subkey string, value []byte) (int, error) {
 	ret := 0
 
 	if h.Database == nil {
 		h.Database = NewDatabase(nil)
 	}
+    if h.hvalues == nil {
+        h.hvalues = make(HashHash)
+    }
 	if _, exists := h.hvalues[key]; !exists {
 		h.hvalues[key] = make(HashValue)
 		ret = 1
@@ -244,6 +268,27 @@ func (h *DefaultHandler) Hset(key, subkey string, value []byte) (int, error) {
 	}
 
 	h.hvalues[key][subkey] = value
+
+	return ret, nil
+}
+
+func (h *DefaultHandler) HDel(key, subkey string) (int, error) {
+	ret := 0
+
+	if h.Database == nil {
+		h.Database = NewDatabase(nil)
+	}
+    if h.hvalues == nil {
+        h.hvalues = make(HashHash)
+    }
+
+    if subkey == "" {
+        delete(h.hvalues, key)
+        ret = 1
+    } else {
+        delete(h.hvalues[key], subkey)
+        ret = 1
+    }
 
 	return ret, nil
 }
@@ -267,6 +312,7 @@ func (h *DefaultHandler) Set(key string, value []byte) error {
 		h.Database = NewDatabase(nil)
 	}
 	h.values[key] = value
+
 	return nil
 }
 
@@ -371,5 +417,74 @@ func NewDefaultHandler() *DefaultHandler {
 		currentDb: 0,
 		dbs:       map[int]*Database{0: db},
 	}
+
 	return ret
+}
+
+func (h *DefaultHandler) KEYS(key string) ([]byte, error) {
+    keys := ""
+    for k,_ := range h.values {
+        keys = keys + k + "\r\n "
+    }
+    return []byte(keys), nil
+}
+
+type DBData struct {
+    Values  HashValue `json:"values"`
+	Hvalues HashHash `json:"hvalues"`
+	Brstack HashBrStack `json:"brstack"`
+
+	Sub HashSub `json:"sub"`
+}
+
+func (h *DefaultHandler) DBsGet() (map[int]*DBData){
+    h.dbs[h.currentDb] = h.Database
+    m := make(map[int]*DBData)
+    for k,v := range h.dbs {
+        if v == nil {
+            m[k] = &DBData{}
+            continue
+        }
+        m[k] = &DBData{h.dbs[k].values, h.dbs[k].hvalues, h.dbs[k].brstack, h.dbs[k].sub}
+    }
+    return m
+}
+
+func (h *DefaultHandler) DBsSet(dbs map[int]*DBData) {
+    if dbs == nil {
+        return
+    }
+    if h.dbs == nil {
+		h.dbs = map[int]*Database{0: h.Database}
+	}
+    for k,v := range dbs {
+        if h.dbs[k] == nil {
+            h.dbs[k] = NewDatabase(nil)
+        }
+
+        if v.Values == nil {
+            h.dbs[k].values =  make(HashValue)
+        } else {
+            h.dbs[k].values = v.Values
+        }
+
+        if v.Values == nil {
+            h.dbs[k].brstack =  make(HashBrStack)
+        } else {
+            h.dbs[k].brstack = v.Brstack
+        }
+
+        if v.Values == nil {
+            h.dbs[k].sub =  make(HashSub)
+        } else {
+            h.dbs[k].sub = v.Sub
+        }
+
+        if v.Values == nil {
+            h.dbs[k].hvalues =  make(HashHash)
+        } else {
+            h.dbs[k].hvalues = v.Hvalues
+        }
+    }
+
 }

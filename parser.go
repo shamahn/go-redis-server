@@ -16,14 +16,16 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// note that this line also protects us from negative integers
 	var argsCount int
 
 	// Multiline request:
 	if line[0] == '*' {
-		if _, err := fmt.Sscanf(line, "*%d\r", &argsCount); err != nil {
-			return nil, malformed("*<numberOfArguments>", line)
+		if _, err := fmt.Sscanf(line, "*%d", &argsCount); err != nil {
+			return nil, malformed("args *<numberOfArguments>", line)
 		}
+
 		// All next lines are pairs of:
 		//$<number of bytes of argument 1> CR LF
 		//<argument data> CR LF
@@ -65,15 +67,17 @@ func parseRequest(conn io.ReadCloser) (*Request, error) {
 }
 
 func readArgument(r *bufio.Reader) ([]byte, error) {
-
 	line, err := r.ReadString('\n')
+
 	if err != nil {
 		return nil, malformed("$<argumentLength>", line)
 	}
+
 	var argSize int
-	if _, err := fmt.Sscanf(line, "$%d\r", &argSize); err != nil {
+	if _, err := fmt.Sscanf(line, "$%d", &argSize); err != nil {
 		return nil, malformed("$<argumentSize>", line)
 	}
+
 
 	// I think int is safe here as the max length of request
 	// should be less then max int value?
@@ -100,16 +104,16 @@ func readArgument(r *bufio.Reader) ([]byte, error) {
 }
 
 func malformed(expected string, got string) error {
-	Debugf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
-	return fmt.Errorf("Mailformed request:'%s does not match %s\\r\\n'", got, expected)
+	Debugf("Malformed request:'%s does not match %s\\r\\n'", got, expected)
+	return fmt.Errorf("Malformed request:'%s does not match %s\\r\\n'", got, expected)
 }
 
 func malformedLength(expected int, got int) error {
 	return fmt.Errorf(
-		"Mailformed request: argument length '%d does not match %d\\r\\n'",
+		"Malformed request: argument length '%d does not match %d\\r\\n'",
 		got, expected)
 }
 
 func malformedMissingCRLF() error {
-	return fmt.Errorf("Mailformed request: line should end with \\r\\n")
+	return fmt.Errorf("Malformed request: line should end with \\r\\n")
 }

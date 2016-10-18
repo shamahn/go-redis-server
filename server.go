@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+    "reflect"
 )
 
 type Server struct {
@@ -92,6 +93,7 @@ func (srv *Server) ServeClient(conn net.Conn) (err error) {
 		if err != nil {
 			return err
 		}
+
 		request.Host = clientAddr
 		request.ClientChan = clientChan
 		reply, err := srv.Apply(request)
@@ -120,6 +122,23 @@ func NewServer(c *Config) (*Server, error) {
 
 	if c.handler == nil {
 		c.handler = NewDefaultHandler()
+	}
+
+    rh := reflect.TypeOf(c.handler)
+	for i := 0; i < rh.NumMethod(); i++ {
+		method := rh.Method(i)
+		if method.Name[0] > 'a' && method.Name[0] < 'z' {
+			continue
+		}
+        if len(method.Name) > 2 && method.Name[0] == 'D' && method.Name[1] == 'B' {
+			continue
+		}
+
+		handlerFn, err := srv.createHandlerFn(c.handler, &method.Func)
+		if err != nil {
+			return nil, err
+		}
+		srv.Register(method.Name, handlerFn)
 	}
 
 	return srv, nil
